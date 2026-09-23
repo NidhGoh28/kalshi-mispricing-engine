@@ -1,0 +1,9 @@
+.venv/
+venv/
+__pycache__/
+data/
+.idea/
+.vscode/
+.DS_Store
+research/groups.json
+research/output_*.txt
