@@ -47,13 +47,24 @@ def cents(market, field):
     return None
 
 
+def distinct_strikes(markets, field):
+    """True if the markets really are ordered by a number.
+
+    Some ladders share one strike and differ only by DATE, e.g. "S&P above
+    8000 by Oct 1 / by Nov 1". Those must be ordered by date instead, so we
+    detect them here and classify them as ladder_date.
+    """
+    values = {m.get(field) for m in markets if m.get(field) is not None}
+    return len(values) == len(markets) and len(values) > 1
+
+
 def classify(event, markets):
     """Decide what kind of logical relationship the markets share."""
     types = {m.get("strike_type") for m in markets}
     if types and types <= {"greater", "greater_or_equal"}:
-        return "ladder_above"
+        return "ladder_above" if distinct_strikes(markets, "floor_strike") else "ladder_date"
     if types and types <= {"less", "less_or_equal"}:
-        return "ladder_below"
+        return "ladder_below" if distinct_strikes(markets, "cap_strike") else "ladder_date"
     if "between" in types:
         return "range_partition"
     if event.get("mutually_exclusive"):

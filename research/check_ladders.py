@@ -13,14 +13,29 @@ from find_groups import fetch_open_events, build_groups
 
 
 def superset_subset_pairs(group):
-    """Return (superset, subset) pairs of neighbouring rungs in a ladder."""
-    rungs = [m for m in group["markets"] if m["floor_strike"] is not None
-             or m["cap_strike"] is not None]
-    if group["type"] == "ladder_above":
-        # "above 95k" contains "above 100k": lower strike is the superset
+    """Return (superset, subset) pairs of neighbouring rungs in a ladder.
+
+    Which market contains which depends on how the ladder is ordered:
+      ladder_above  "above 95k" contains "above 100k"   -> lower strike wins
+      ladder_below  "below 100k" contains "below 95k"   -> higher strike wins
+      ladder_date   "by November" contains "by October" -> later date wins
+    Getting this backwards turns a perfectly normal price ordering into a
+    fake arbitrage, so each case is handled explicitly.
+    """
+    kind = group["type"]
+
+    if kind == "ladder_date":
+        rungs = [m for m in group["markets"] if m.get("close_time")]
+        rungs.sort(key=lambda m: m["close_time"])          # earliest first
+        # the LATER market is the superset, so pair (later, earlier)
+        return [(late, early) for early, late in zip(rungs, rungs[1:])]
+
+    if kind == "ladder_above":
+        rungs = [m for m in group["markets"] if m["floor_strike"] is not None]
         rungs.sort(key=lambda m: m["floor_strike"])
         return list(zip(rungs, rungs[1:]))
-    # "below 95k" is inside "below 100k": higher strike is the superset
+
+    rungs = [m for m in group["markets"] if m["cap_strike"] is not None]
     rungs.sort(key=lambda m: m["cap_strike"], reverse=True)
     return list(zip(rungs, rungs[1:]))
 
@@ -68,7 +83,7 @@ def main():
     print(f"Checking {len(groups)} groups\n")
     found = 0
     for g in groups:
-        if g["type"] in ("ladder_above", "ladder_below"):
+        if g["type"] in ("ladder_above", "ladder_below", "ladder_date"):
             results = check_ladder(g)
         else:
             results = check_exclusive(g)
