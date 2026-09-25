@@ -42,7 +42,10 @@ def main():
 
     print("\n=== Columns ===")
     print(sorted(data.columns.tolist()))
-    print(f"Missing expected columns: {sorted(EXPECTED_COLUMNS - set(data.columns))}")
+    print(
+        f"Missing expected columns: "
+        f"{sorted(EXPECTED_COLUMNS - set(data.columns))}"
+    )
 
     print("\n=== Time coverage ===")
     data["ts"] = pd.to_datetime(data["ts"], utc=True, errors="coerce")
@@ -50,9 +53,35 @@ def main():
     print(f"Last timestamp:  {data['ts'].max()}")
     print(f"Unique timestamps: {data['ts'].nunique():,}")
 
+    print("\n=== Snapshot timing gaps ===")
+
+    snapshot_times = (
+        data[["source_file", "ts"]]
+        .drop_duplicates()
+        .sort_values("ts")
+    )
+
+    snapshot_times["gap_seconds"] = (
+        snapshot_times["ts"].diff().dt.total_seconds()
+    )
+
+    gaps = snapshot_times["gap_seconds"].dropna()
+
+    if gaps.empty:
+        print("Not enough snapshots to calculate timing gaps.")
+    else:
+        print(f"Minimum gap: {gaps.min():,.1f} seconds")
+        print(f"Median gap:  {gaps.median():,.1f} seconds")
+        print(f"Maximum gap: {gaps.max():,.1f} seconds")
+        print(f"Gaps over 90 seconds: {(gaps > 90).sum():,}")
+        print(f"Gaps over 5 minutes: {(gaps > 300).sum():,}")
+
     print("\n=== Market coverage ===")
     print(f"Unique tickers: {data['ticker'].nunique():,}")
-    print(f"Unique sides: {sorted(data['side'].dropna().unique().tolist())}")
+    print(
+        f"Unique sides: "
+        f"{sorted(data['side'].dropna().unique().tolist())}"
+    )
 
     print("\n=== Data validity ===")
     print(f"Missing timestamps: {data['ts'].isna().sum():,}")
@@ -68,7 +97,13 @@ def main():
     print(data["side"].value_counts(dropna=False).to_string())
 
     print("\n=== Rows by ticker, first 20 ===")
-    print(data.groupby("ticker").size().sort_values(ascending=False).head(20).to_string())
+    print(
+        data.groupby("ticker")
+        .size()
+        .sort_values(ascending=False)
+        .head(20)
+        .to_string()
+    )
 
     print("\n=== Rows by snapshot, first 20 ===")
     rows_per_snapshot = data.groupby("source_file").size()
